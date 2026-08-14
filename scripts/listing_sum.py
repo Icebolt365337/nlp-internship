@@ -4,11 +4,6 @@ LISTINGS_DATA_PATH = 'data/processed/listing_sample_cleaned.csv'
 
 
 class _FallbackSummarizer:
-    """Minimal built-in summarizer used ONLY if listing_summarizer.py
-    isn't importable, so the example below always prints an actual
-    summary instead of silently skipping it. For real use, prefer the
-    full ListingSummarizer (extractive + ROUGE-evaluated) in
-    listing_summarizer.py."""
 
     def summarize(self, listing_record, entities):
         city = listing_record.get('L_City') or listing_record.get('city')
@@ -82,9 +77,6 @@ class AnswerabilityChecker:
         return True, "Query is answerable"
 
     def check_post_query(self, query, results):
-        """Check AFTER executing SQL. `results` may be a pandas DataFrame
-        or a list of dicts (list-of-rows) -- both are supported so this
-        doesn't force a pandas dependency on callers who don't have one."""
         if results is None:
             return False, "No listings match your criteria"
 
@@ -106,12 +98,7 @@ class AnswerabilityChecker:
         return True, "Results found"
 
 
-# ===========================================================================
-# Tests
-# ===========================================================================
-
 class StubParser:
-    """Mimics QueryParser.parse() for tests that don't need the real one."""
     def __init__(self, filters=None):
         self._filters = filters or {}
 
@@ -160,7 +147,7 @@ def test_query_with_no_validator_still_passes_keyword_check():
 
 def test_query_with_no_parser_falls_back_gracefully():
     checker = AnswerabilityChecker(query_parser=None)
-    checker.parser = None  # force no-parser path even if query_parser.py IS importable
+    checker.parser = None
     can_answer, message = checker.check_pre_query("homes with a pool")
     assert can_answer is True
 
@@ -191,7 +178,7 @@ def test_post_query_with_pandas_dataframe():
     try:
         import pandas as pd
     except ImportError:
-        return  # skip if pandas isn't available
+        return
     checker = AnswerabilityChecker()
     df = pd.DataFrame([{"price": 650000, "beds": 3}])
     can_answer, message = checker.check_post_query("homes in Irvine", df)
@@ -209,7 +196,7 @@ def test_integration_with_real_query_parser_and_schema_validator_if_available():
     try:
         from query_parser import QueryParser, SchemaValidator
     except ImportError:
-        return  # skip: query_parser.py not present in this environment
+        return
 
     import tempfile, json, os
     schema = {
@@ -253,8 +240,6 @@ if __name__ == "__main__":
 
     print("\n=== Example usage: answerability check, then summarize the match ===")
 
-    # Try your real data first; fall back to one hardcoded listing so the
-    # demo still runs if LISTINGS_DATA_PATH isn't set up yet.
     example_listing = {
         "L_ListingID": 1, "L_City": "Irvine",
         "L_Remarks": "Charming home in a great neighborhood. Features a sparkling pool "
@@ -276,7 +261,6 @@ if __name__ == "__main__":
             remarks = row.get('remarks_cleaned') or row.get('remarks') or row.get('L_Remarks') or ''
             example_entities = EntityExtractor().extract_all(remarks)
         except ImportError:
-            # no entity_extractor.py available -- use the CSV's own columns directly
             example_entities = {
                 "bedrooms": row.get('beds'), "bathrooms": row.get('baths'),
                 "price": row.get('price'), "amenities": [],
@@ -312,8 +296,5 @@ if __name__ == "__main__":
         print(f"    answerable={can_answer}, message={message!r}")
 
         if can_answer:
-            # In a real pipeline this is where you'd run the SQL and check
-            # check_post_query() on the results; here we just show what
-            # the downstream summary would look like for a matching listing.
             summary = summarizer.summarize(example_listing, example_entities)
             print(f"    example listing summary: {summary!r}")
