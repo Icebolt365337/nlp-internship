@@ -1,7 +1,5 @@
 from __future__ import annotations
-
 import nltk
-
 try:
     nltk.data.find('tokenizers/punkt_tab')
 except LookupError:
@@ -11,7 +9,6 @@ except LookupError:
         pass
 
 LISTINGS_DATA_PATH = 'data/processed/listing_sample_cleaned.csv'
-
 
 def _sent_tokenize(text: str):
     try:
@@ -28,14 +25,11 @@ class ListingSummarizer:
         if not sentences:
             return ""
 
-        # Score sentences by entity mentions and position
         scores = []
         for i, sent in enumerate(sentences):
             score = 0
-            # First sentence bonus
             if i == 0:
                 score += 2
-            # Entity mentions
             if str(entities.get('bedrooms', '')) and str(entities.get('bedrooms', '')) in sent:
                 score += 1
             if str(entities.get('bathrooms', '')) and str(entities.get('bathrooms', '')) in sent:
@@ -48,17 +42,11 @@ class ListingSummarizer:
                     break
             scores.append((score, sent))
 
-        # Return top sentences, in original order
         top_sentences = sorted(scores, reverse=True)[:num_sentences]
         top_texts = {s for _, s in top_sentences}
         return ' '.join(s for s in sentences if s in top_texts)
 
     def summarize(self, listing_record, entities, num_sentences=1):
-        """Composes the actual deliverable summary: a structured
-        beds/baths/price/location lead-in + top 2 features, followed by
-        an extractive sentence pulled from the remarks for texture.
-        Guarantees required fields are present regardless of whether the
-        remarks text happens to mention them."""
         remarks = (
             listing_record.get('L_Remarks')
             or listing_record.get('remarks_cleaned')
@@ -168,7 +156,7 @@ def export_human_eval_csv(rows, path='human_eval.csv'):
 class AnswerabilityChecker:
     def __init__(self, taxonomy=None, schema_validator=None, query_parser=None):
         self.taxonomy = taxonomy or {}
-        self.validator = schema_validator  # optional: skip data-validity check if not provided
+        self.validator = schema_validator
 
         if query_parser is None:
             try:
@@ -185,7 +173,6 @@ class AnswerabilityChecker:
         ]
 
     def check_pre_query(self, query):
-        """Check BEFORE generating SQL."""
         query_lower = (query or '').lower()
 
         has_re_terms = any(kw in query_lower for kw in self.real_estate_keywords)
@@ -389,7 +376,7 @@ def test_query_with_no_validator_still_passes_keyword_check():
 
 def test_query_with_no_parser_falls_back_gracefully():
     checker = AnswerabilityChecker(query_parser=None)
-    checker.parser = None  # force no-parser path even if query_parser.py IS importable
+    checker.parser = None
     can_answer, message = checker.check_pre_query("homes with a pool")
     assert can_answer is True
 
@@ -449,8 +436,7 @@ def test_integration_with_real_query_parser_and_schema_validator_if_available():
     try:
         from query_parser import QueryParser, SchemaValidator
     except ImportError:
-        return  # skip: query_parser.py not present in this environment
-
+        return
     import tempfile, json, os
     schema = {
         "valid_cities": ["Irvine", "Portland"],
