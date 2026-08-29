@@ -1,6 +1,26 @@
-mysql-connector-python==9.2.0
-pandas==2.2.3
-nltk==3.9.1
-spacy==3.8.14
-pytest==8.3.4
-jupyter==1.1.1
+# API framework
+fastapi
+uvicorn[standard]
+pydantic
+
+# NLP modules used by the API (query_parser, entity_extractor,
+# signal_extractor, listing_summarizer, compliance_checker have no
+# extra deps beyond the standard library + these)
+scikit-learn
+nltk
+rouge_score
+rank_bm25
+faiss-cpu
+pandas
+
+# Optional: real semantic embeddings (falls back to HashingEmbedder in
+# semantic_search.py if unavailable/unreachable at runtime)
+sentence-transformers
+
+# Optional: Redis-backed caching (falls back to in-memory cache in
+# main.py if REDIS_URL isn't set or Redis is unreachable)
+redis
+
+# Testing
+pytest
+httpx

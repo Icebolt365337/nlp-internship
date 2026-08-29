@@ -75,7 +75,6 @@ PATTERN_LIBRARY = {
 class ComplianceChecker:
     def __init__(self, pattern_library=None):
         self.pattern_library = pattern_library if pattern_library is not None else PATTERN_LIBRARY
-        # kept for structural parity with the original sample (category -> flat term list)
         self.prohibited_patterns = {
             category: [p for p, _, _ in patterns]
             for category, patterns in self.pattern_library.items()
@@ -100,7 +99,7 @@ class ComplianceChecker:
         info = [v for v in violations if v['severity'] == 'info']
 
         return {
-            'compliant': len(errors) == 0,  # errors block publication; warnings/info do not
+            'compliant': len(errors) == 0,
             'violations': violations,
             'errors': errors,
             'warnings': warnings,
@@ -109,15 +108,7 @@ class ComplianceChecker:
         }
 
 
-# ===========================================================================
-# Integration example: listing submission workflow
-# ===========================================================================
-
 def submit_listing(listing_text, checker=None, listing_id=None):
-    """Example of wiring ComplianceChecker into a listing submission
-    endpoint. Errors block publication outright; warnings require a
-    human review step before going live; info is logged but doesn't
-    block anything."""
     checker = checker or ComplianceChecker()
     result = checker.check_listing(listing_text)
 
@@ -222,10 +213,6 @@ def _evaluate_recall_precision(checker):
     return recall, precision, tp, fn, fp
 
 
-# ===========================================================================
-# Tests
-# ===========================================================================
-
 def test_recall_is_100_percent_on_known_violations():
     checker = ComplianceChecker()
     recall, precision, tp, fn, fp = _evaluate_recall_precision(checker)
@@ -253,14 +240,11 @@ def test_severity_levels_are_multi_tier():
 
 def test_compliant_flag_only_reflects_errors():
     checker = ComplianceChecker()
-    # a warning-only text should still report compliant=True (needs
-    # review, but isn't an automatic block)
     result = checker.check_listing("Perfect for singles looking to start out.")
     assert result['errors'] == []
     assert len(result['warnings']) > 0
     assert result['compliant'] is True
 
-    # an error-level text must report compliant=False
     result = checker.check_listing("Adults only, no children.")
     assert result['compliant'] is False
 

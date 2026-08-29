@@ -8,13 +8,11 @@ class QueryParser:
     def parse(self, query):
         filters = {}
 
-        # --- Price ---
         if match := re.search(r'between\s+\$?(\d[\d,]*(?:\.\d+)?)\s*([km]?)\s+and\s+\$?(\d[\d,]*(?:\.\d+)?)\s*([km]?)', query, re.I):
             lo = self._parse_number(match.group(1), match.group(2))
             hi = self._parse_number(match.group(3), match.group(4))
             filters['price_min'], filters['price_max'] = min(lo, hi), max(lo, hi)
         elif match := re.search(r'\$?(\d[\d,]*(?:\.\d+)?)(k|m)\s*-\s*\$?(\d[\d,]*(?:\.\d+)?)\s*([km]?)', query, re.I):
-            # requires k/m suffix on the first number so "2-3 bed" isn't mistaken for a price
             lo = self._parse_number(match.group(1), match.group(2))
             hi = self._parse_number(match.group(3), match.group(4))
             filters['price_min'], filters['price_max'] = min(lo, hi), max(lo, hi)
@@ -35,7 +33,6 @@ class QueryParser:
         elif match := re.search(r'(\d+)\s*(?:bed|br|bedroom)s?', query, re.I):
             filters['bedrooms'] = int(match.group(1))
 
-        # --- Bathrooms ---
         if match := re.search(r'(\d+(?:\.\d+)?)\s*(?:to|-)\s*(\d+(?:\.\d+)?)\s*(?:bath|ba)s?\b', query, re.I):
             filters['bathrooms_min'], filters['bathrooms_max'] = float(match.group(1)), float(match.group(2))
         elif match := re.search(r'(\d+(?:\.\d+)?)\s*\+\s*(?:bath|ba)s?\b', query, re.I):
@@ -47,7 +44,6 @@ class QueryParser:
         elif match := re.search(r'(\d+(?:\.\d+)?)\s*(?:bath|ba)s?\b', query, re.I):
             filters['bathrooms'] = float(match.group(1))
 
-        # --- Square footage ---
         if match := re.search(r'between\s+(\d[\d,]*)\s*and\s+(\d[\d,]*)\s*(?:sq\s*\.?\s*ft|sqft|square feet)', query, re.I):
             filters['sqft_min'] = int(match.group(1).replace(',', ''))
             filters['sqft_max'] = int(match.group(2).replace(',', ''))
@@ -56,19 +52,16 @@ class QueryParser:
         elif match := re.search(r'(?:under|below|less than|up to)\s+(\d[\d,]*)\s*(?:sq\s*\.?\s*ft|sqft|square feet)', query, re.I):
             filters['sqft_max'] = int(match.group(1).replace(',', ''))
 
-        # --- Year built ---
         if match := re.search(r'(?:built after|newer than|built since)\s+(\d{4})', query, re.I):
             filters['year_built_min'] = int(match.group(1))
         if match := re.search(r'(?:built before|older than)\s+(\d{4})', query, re.I):
             filters['year_built_max'] = int(match.group(1))
 
-        # --- Lot size ---
         if re.search(r'half[- ]acre', query, re.I):
             filters['lot_size_min_acres'] = 0.5
         elif match := re.search(r'(\d+(?:\.\d+)?)\+?\s*acre', query, re.I):
             filters['lot_size_min_acres'] = float(match.group(1))
 
-        # --- Garage / stories ---
         if match := re.search(r'(\d+)[- ]car garage', query, re.I):
             filters['garage_spaces_min'] = int(match.group(1))
 
@@ -77,16 +70,13 @@ class QueryParser:
         elif re.search(r'\b(?:single|one|1)[- ]stor(?:y|ey)\b', query, re.I):
             filters['stories'] = 1
 
-        # --- Property type ---
         if match := re.search(r'\b(single[- ]family|condo(?:minium)?s?|townhouses?|apartments?|duplex(?:es)?|multi[- ]family|houses?)\b', query, re.I):
             filters['property_type'] = self._normalize_property_type(match.group(1))
 
-        # --- City ---
         stopwords = r'under|over|below|above|with|without|near|for|that|having|and|priced|built|up|no|at|between|less|more|within'
         if match := re.search(r'\bin\s+([a-zA-Z][a-zA-Z\s]*?)(?=\s+(?:' + stopwords + r')\b|[,.\!\?]|$)', query, re.I):
             filters['city'] = re.sub(r'\s+', ' ', match.group(1).strip()).title()
 
-        # --- Amenities (positive + negation) ---
         amenity_phrases = [
             'air conditioning', 'central air', 'hardwood floors', 'updated kitchen',
             'walk-in closet', 'granite countertops', 'stainless steel appliances',
@@ -191,7 +181,6 @@ class QueryParser:
             conditions.append('L_City = %s')
             params.append(filters['city'])
 
-        # amenities: value (with % wildcards) is a bound parameter, never SQL text
         for amenity in filters.get('amenities', []):
             conditions.append('L_Remarks LIKE %s')
             params.append(f'%{amenity}%')
@@ -236,12 +225,10 @@ class SchemaValidator:
     def validate_query(self, filters):
         errors = []
 
-        # Check city exists in database
         if 'city' in filters:
             if filters['city'].lower() not in self.valid_cities:
                 errors.append(f"City '{filters['city']}' not found in database")
 
-        # Check price range
         price_range = self.schema.get('ranges', {}).get('price', {})
         if 'price_max' in filters and price_range:
             if filters['price_max'] < price_range['min'] or filters['price_max'] > price_range['max']:
@@ -250,14 +237,12 @@ class SchemaValidator:
             if filters['price_min'] < price_range['min'] or filters['price_min'] > price_range['max']:
                 errors.append(f"Price {filters['price_min']} outside typical range")
 
-        # Check bedroom count
         bed_range = self.schema.get('ranges', {}).get('bedrooms', {})
         for key in ('bedrooms', 'bedrooms_min', 'bedrooms_max'):
             if key in filters and bed_range:
                 if filters[key] < bed_range['min'] or filters[key] > bed_range['max']:
                     errors.append(f"Bedroom count {filters[key]} seems invalid")
 
-        # Check property type / amenities against schema
         if 'property_type' in filters:
             valid_types = self.schema.get('valid_property_types', [])
             if valid_types and filters['property_type'] not in valid_types:
@@ -270,10 +255,6 @@ class SchemaValidator:
 
         return len(errors) == 0, errors
 
-
-# ===========================================================================
-# Tests (50+ query examples + SQL injection checks)
-# ===========================================================================
 
 CASES = [
     ("3 bed under 700k in Irvine", {"bedrooms": 3, "price_max": 700000, "city": "Irvine"}),
@@ -396,8 +377,6 @@ def test_sql_uses_only_parameterized_placeholders():
     assert sql.count("%s") == len(params)
 
 
-# --- test fixture: a real schema.json written to a temp file, since
-#     SchemaValidator no longer has a built-in default to fall back on ---
 import tempfile
 
 _TEST_SCHEMA = {
@@ -489,9 +468,6 @@ if __name__ == "__main__":
     test_schema_validator_raises_clear_error_when_missing()
     print("SQL safety + validation + pipeline tests: OK")
 
-    # Usage example matching the original sample.
-    # This uses YOUR schema.json -- put it next to this script (or pass
-    # SchemaValidator(schema_path='/full/path/to/schema.json')).
     parser = QueryParser()
     try:
         validator = SchemaValidator()  # looks for ./schema.json, then <script_dir>/schema.json

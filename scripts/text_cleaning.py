@@ -26,17 +26,7 @@ class TextCleaner:
             'yr': 'year', 'approx': 'approximately', 'flrs': 'floors',
             'lg': 'large', 'nr': 'near', 'incl': 'including',
         }
-        # NOTE: 'sf' and 'dr' are deliberately excluded, per real-data profiling:
-        #   - 'sf': 63/68 occurrences (93%) are directly preceded by a number
-        #     (e.g. "1,100 sf") -> handled contextually in
-        #     normalize_measurements instead of a blind whole-word swap.
-        #     The remaining 5 are ambiguous (possibly "single family") and
-        #     are correctly left untouched.
-        #   - 'dr': of 14 occurrences, 11 are street names ("Sunset Dr"), and
-        #     the other 3 are zoning codes ("SR-DR-SC") and "door" ("sliding
-        #     dr") -- zero are "dining room" in this dataset.
         self._sorted_abbrevs = sorted(self.abbrev_map.keys(), key=len, reverse=True)
-        # abbreviations commonly glued directly to a digit, e.g. "3br", "2.5ba"
         self._numeric_glued = ['br', 'ba', 'bd', 'sqft']
 
     def clean_text(self, text):
@@ -76,9 +66,7 @@ class TextCleaner:
         if text is None or (isinstance(text, float) and pd.isna(text)):
             return text
         text = str(text)
-        # 450k -> 450000
         text = re.sub(r'\b(\d+(?:\.\d+)?)k\b', lambda m: str(int(float(m.group(1)) * 1000)), text, flags=re.I)
-        # 1.2m -> 1200000
         text = re.sub(r'\b(\d+(?:\.\d+)?)m\b', lambda m: str(int(float(m.group(1)) * 1000000)), text, flags=re.I)
         return text
 
@@ -86,21 +74,15 @@ class TextCleaner:
         if text is None or (isinstance(text, float) and pd.isna(text)):
             return text
         text = str(text)
-        # strip thousands-separator commas before sqft/sf/acres: "2,000 sqft" -> "2000 sqft"
         text = re.sub(
             r'(\d{1,3}(?:,\d{3})+)(\s*(?:sq\.?\s*ft\.?|sqft|sf|acres?))',
             lambda m: m.group(1).replace(',', '') + m.group(2),
             text, flags=re.I
         )
-        # sq ft / sq. ft. / sqft -> square feet
         text = re.sub(r'\bsq\.?\s*ft\.?\b', 'square feet', text, flags=re.I)
         text = re.sub(r'\bsqft\b', 'square feet', text, flags=re.I)
-        # "sf" is ambiguous (square feet vs. single family), so only expand it
-        # when directly preceded by a number, e.g. "1,100 sf" -> "1100 square feet"
         text = re.sub(r'\b(\d+(?:\.\d+)?)\s*sf\b', r'\1 square feet', text, flags=re.I)
-        # leading-dot decimals: .5 acres -> 0.5 acres
         text = re.sub(r'(?<!\d)\.(\d+)', r'0.\1', text)
-        # room dimensions: 10x12 -> 10 by 12 feet
         text = re.sub(r'\b(\d+)\s*[xX]\s*(\d+)\b', r'\1 by \2 feet', text)
         return text
 
@@ -108,11 +90,8 @@ class TextCleaner:
         if text is None or (isinstance(text, float) and pd.isna(text)):
             return text
         text = str(text)
-        # split digit-glued abbreviations first: "3br" -> "3 br"
-        # (\b alone won't split a digit from a letter, since both are "word" chars)
         for abbr in self._numeric_glued:
             text = re.sub(r'(?<=\d)(' + re.escape(abbr) + r')(?=\b)', r' \1', text, flags=re.I)
-        # longest match first so multi-word entries expand fully
         for abbr in self._sorted_abbrevs:
             if '/' in abbr or ' ' in abbr:
                 pattern = re.escape(abbr)
@@ -164,15 +143,8 @@ class TextCleaner:
             hits = len(re.findall(pattern, joined))
             if hits:
                 counter[abbr] = hits
-        # top_k=None returns everything, sorted by count -- with only 19
-        # validated entries in abbrev_map there's no need to clip the report
         return counter.most_common(top_k)
 
-    # ------------------------------------------------------------------
-    # Diagnostic / evidence-gathering methods used to build abbrev_map above.
-    # Not part of the normal clean_text pipeline; kept for re-use if the
-    # dataset changes and the dictionary needs to be re-validated.
-    # ------------------------------------------------------------------
 
     def diagnose_ambiguous_terms(self, df, column_name):
         """Breaks down 'sf' and 'dr' usage by context (see NOTE in __init__)."""
@@ -235,8 +207,6 @@ if __name__ == "__main__":
     df['remarks_cleaned'] = df['remarks'].apply(cleaner.clean_text)
     df.to_csv('data/processed/listing_sample_cleaned.csv', index=False)
 
-    # Set to True to re-run the diagnostics that were used to build
-    # abbrev_map (only needed again if the underlying dataset changes).
     RUN_DIAGNOSTICS = False
     if RUN_DIAGNOSTICS:
         print(f"Ambiguous term breakdown: {cleaner.diagnose_ambiguous_terms(df, 'remarks')}")

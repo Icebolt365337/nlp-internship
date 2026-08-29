@@ -107,7 +107,6 @@ class ListingSummarizer:
 
 
 class StubAbstractiveModel:
-
     def __call__(self, text):
         truncated = text.strip().split('. ')[0]
         return [{'summary_text': truncated + ('.' if not truncated.endswith('.') else '')}]

@@ -60,9 +60,6 @@ class BM25Searcher:
         return results, elapsed
 
 
-# ===========================================================================
-# Tests
-# ===========================================================================
 
 LISTINGS = [
     "Charming home in Irvine with a sparkling pool and two-car garage.",

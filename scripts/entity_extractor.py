@@ -6,28 +6,21 @@ import math
 
 class EntityExtractor:
     AMENITY_TAXONOMY = [
-        # parking / structure
         "two car garage", "three car garage", "attached garage", "detached garage",
         "covered parking", "garage", "carport",
-        # outdoor
         "in-ground pool", "swimming pool", "pool", "spa", "sauna", "hot tub",
         "deck", "patio", "rooftop deck", "fenced yard", "sprinkler system",
         "gated community", "waterfront", "lake view", "mountain view", "cul-de-sac",
         "corner lot", "guest house",
-        # interior finishes
         "hardwood floors", "granite countertops", "stainless steel appliances",
         "vaulted ceilings", "walk-in closet", "walk-in pantry", "open floor plan",
         "gourmet kitchen", "renovated kitchen", "updated bathroom", "master suite",
         "wine cellar", "fireplace", "crown molding", "bay window",
-        # systems
         "air conditioning", "central air", "solar panels", "security system",
         "smart home", "energy efficient", "new roof", "new construction",
-        # rooms
         "finished basement", "basement", "home office", "bonus room", "mud room",
         "laundry room", "in-law suite", "great room", "family room",
-        # building amenities
         "elevator", "doorman", "concierge",
-        # financial / association
         "homeowners association", "washer/dryer",
     ]
 
@@ -44,8 +37,6 @@ class EntityExtractor:
                 terms.extend(t for t in extra if t not in terms)
         except (FileNotFoundError, json.JSONDecodeError):
             pass
-        # longest-first so multi-word phrases are checked before their
-        # shorter substrings during iteration (see extract_amenities)
         return sorted(set(terms), key=len, reverse=True)
 
     def extract_bedrooms(self, text):
@@ -60,7 +51,6 @@ class EntityExtractor:
         return None
 
     def extract_price(self, text):
-        # Assumes cleaned text from Week 2
         match = re.search(r'\$?(\d{5,})', text)
         return int(match.group(1)) if match else None
 
@@ -107,11 +97,9 @@ class EntityExtractor:
         }
 
 def is_nan_or_null(val):
-    # Check for None (null)
     if val is None:
         return True
     
-    # Check for NaN (only applies to float types)
     if isinstance(val, float) and math.isnan(val):
         return True
         
