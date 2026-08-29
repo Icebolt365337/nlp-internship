@@ -1,5 +1,7 @@
 from __future__ import annotations
+
 import nltk
+
 try:
     nltk.data.find('tokenizers/punkt_tab')
 except LookupError:
@@ -10,6 +12,7 @@ except LookupError:
 
 LISTINGS_DATA_PATH = 'data/processed/listing_sample_cleaned.csv'
 
+
 def _sent_tokenize(text: str):
     try:
         return nltk.sent_tokenize(text)
@@ -17,6 +20,7 @@ def _sent_tokenize(text: str):
         import re
         sentences = re.split(r'(?<=[.!?])\s+', text.strip())
         return [s for s in sentences if s]
+
 
 class ListingSummarizer:
 
@@ -107,6 +111,7 @@ class ListingSummarizer:
 
 
 class StubAbstractiveModel:
+
     def __call__(self, text):
         truncated = text.strip().split('. ')[0]
         return [{'summary_text': truncated + ('.' if not truncated.endswith('.') else '')}]
@@ -156,10 +161,12 @@ class AnswerabilityChecker:
     def __init__(self, taxonomy=None, schema_validator=None, query_parser=None):
         self.taxonomy = taxonomy or {}
         self.validator = schema_validator
-
         if query_parser is None:
             try:
-                from query_parser import QueryParser
+                try:
+                    from query_parser import QueryParser
+                except ImportError:
+                    from scripts.query_parser import QueryParser
                 query_parser = QueryParser()
             except ImportError:
                 query_parser = None
@@ -228,6 +235,7 @@ class StubValidator:
 
     def validate_query(self, filters):
         return self._valid, self._errors
+
 
 SAMPLE_LISTINGS = [
     (
@@ -375,7 +383,7 @@ def test_query_with_no_validator_still_passes_keyword_check():
 
 def test_query_with_no_parser_falls_back_gracefully():
     checker = AnswerabilityChecker(query_parser=None)
-    checker.parser = None
+    checker.parser = None  # force no-parser path even if query_parser.py IS importable
     can_answer, message = checker.check_pre_query("homes with a pool")
     assert can_answer is True
 
@@ -436,6 +444,7 @@ def test_integration_with_real_query_parser_and_schema_validator_if_available():
         from query_parser import QueryParser, SchemaValidator
     except ImportError:
         return
+
     import tempfile, json, os
     schema = {
         "valid_cities": ["Irvine", "Portland"],

@@ -4,7 +4,10 @@ import re
 import json
 import os
 
-from entity_extractor import EntityExtractor
+try:
+    from entity_extractor import EntityExtractor
+except ImportError:
+    from scripts.entity_extractor import EntityExtractor
 
 
 DEFAULT_TAXONOMY = {
@@ -93,6 +96,13 @@ class SignalExtractor:
 
     def process_csv(self, csv_path, output_dir='processed', filename='signals.jsonl'):
         import pandas as pd
+
+        if not os.path.isfile(csv_path):
+            raise FileNotFoundError(
+                f"Could not find '{csv_path}'.\n"
+                f"This should be your rets_property export as a CSV with columns:\n"
+                f"  L_ListingID, L_Address, L_City, beds, baths, price, remarks, remarks_cleaned"
+            )
 
         df = pd.read_csv(csv_path)
         records = df.to_dict('records')
@@ -254,5 +264,10 @@ if __name__ == "__main__":
 
     print("\n=== Processing rets_property table ===")
     csv_path = 'data/processed/listing_sample_cleaned.csv'
-    out_path, n_written = extractor.process_csv(csv_path, output_dir='data/processed')
-    print(f"Wrote {n_written} listings to {out_path}")
+    try:
+        out_path, n_written = extractor.process_csv(csv_path, output_dir='processed')
+        print(f"Wrote {n_written} listings to {out_path}")
+    except FileNotFoundError as e:
+        print(e)
+        print("\nEdit csv_path above to point at your rets_property CSV, "
+              "or call extractor.process_csv('/full/path/to/your.csv') directly.")

@@ -13,9 +13,6 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from starlette.middleware.base import BaseHTTPMiddleware
 
-# ===========================================================================
-# Logging
-# ===========================================================================
 
 logging.basicConfig(
     level=logging.INFO,
@@ -24,68 +21,57 @@ logging.basicConfig(
 logger = logging.getLogger("real_estate_nlp_api")
 
 
-# ===========================================================================
-# Optional module imports -- each NLP capability degrades gracefully if
-# its module (or heavy deps like sentence-transformers/torch) isn't
-# available in this deployment.
-# ===========================================================================
-
 MODULES_LOADED = {}
 
 try:
-    from query_parser import QueryParser, SchemaValidator
+    from scripts.query_parser import QueryParser, SchemaValidator
     MODULES_LOADED['query_parser'] = True
 except ImportError as e:
     logger.warning(f"query_parser not available: {e}")
     MODULES_LOADED['query_parser'] = False
 
 try:
-    from entity_extractor import EntityExtractor
+    from scripts.entity_extractor import EntityExtractor
     MODULES_LOADED['entity_extractor'] = True
 except ImportError as e:
     logger.warning(f"entity_extractor not available: {e}")
     MODULES_LOADED['entity_extractor'] = False
 
 try:
-    from signal_extractor import SignalExtractor
+    from scripts.signal_extractor import SignalExtractor
     MODULES_LOADED['signal_extractor'] = True
 except ImportError as e:
     logger.warning(f"signal_extractor not available: {e}")
     MODULES_LOADED['signal_extractor'] = False
 
 try:
-    from listing_summarizer import ListingSummarizer, AnswerabilityChecker
+    from scripts.listing_sum import ListingSummarizer, AnswerabilityChecker
     MODULES_LOADED['listing_summarizer'] = True
 except ImportError as e:
     logger.warning(f"listing_summarizer not available: {e}")
     MODULES_LOADED['listing_summarizer'] = False
 
 try:
-    from compliance_checker import ComplianceChecker
+    from scripts.compliance import ComplianceChecker
     MODULES_LOADED['compliance_checker'] = True
 except ImportError as e:
     logger.warning(f"compliance_checker not available: {e}")
     MODULES_LOADED['compliance_checker'] = False
 
 try:
-    from query_intent_classifier import QueryIntentClassifier, LABELED_DATASET
+    from scripts.queryintent import QueryIntentClassifier, LABELED_DATASET
     MODULES_LOADED['query_intent_classifier'] = True
 except ImportError as e:
     logger.warning(f"query_intent_classifier not available: {e}")
     MODULES_LOADED['query_intent_classifier'] = False
 
 try:
-    from semantic_search import SemanticSearcher, HashingEmbedder
+    from scripts.semantic_search import SemanticSearcher
     MODULES_LOADED['semantic_search'] = True
 except ImportError as e:
     logger.warning(f"semantic_search not available: {e}")
     MODULES_LOADED['semantic_search'] = False
 
-
-# ===========================================================================
-# Caching -- tries Redis, falls back to an in-memory TTL cache. Same
-# injectable/graceful-degradation pattern used throughout this project.
-# ===========================================================================
 
 class InMemoryTTLCache:
     def __init__(self):
@@ -179,12 +165,6 @@ def cached_response(endpoint: str, payload: dict, compute_fn, ttl=60):
     return result, False
 
 
-# ===========================================================================
-# Rate limiting -- 10 requests/second per IP, in-process token bucket.
-# For multi-instance deployments behind a load balancer, swap this for a
-# shared store (Redis) keyed the same way; the interface stays the same.
-# ===========================================================================
-
 RATE_LIMIT_PER_SECOND = 10
 
 
@@ -232,10 +212,6 @@ class LoggingMiddleware(BaseHTTPMiddleware):
         return response
 
 
-# ===========================================================================
-# App setup
-# ===========================================================================
-
 app = FastAPI(
     title="Real Estate NLP API",
     description="Search, query parsing, entity extraction, summarization, "
@@ -245,9 +221,6 @@ app = FastAPI(
 app.add_middleware(RateLimitMiddleware)
 app.add_middleware(LoggingMiddleware)
 
-
-# Lazily-initialized singletons for stateful modules (avoid re-training /
-# re-encoding on every request).
 _state: dict[str, Any] = {}
 
 
@@ -302,11 +275,7 @@ DEMO_LISTINGS = [
 
 def get_semantic_searcher():
     if 'semantic_searcher' not in _state:
-        try:
-            searcher = SemanticSearcher()  # real SentenceTransformer, if reachable
-        except Exception as e:
-            logger.warning(f"Falling back to HashingEmbedder for search ({e}).")
-            searcher = SemanticSearcher(model=HashingEmbedder(dim=384))
+        searcher = SemanticSearcher() 
         searcher.build_index([l["remarks"] for l in DEMO_LISTINGS])
         _state['semantic_searcher'] = searcher
     return _state['semantic_searcher']
@@ -319,10 +288,6 @@ def _unavailable(module_name: str):
                f"Check GET / for currently loaded modules.",
     )
 
-
-# ===========================================================================
-# Pydantic models
-# ===========================================================================
 
 class SearchRequest(BaseModel):
     query: str = Field(..., min_length=1, examples=["3 bed under 700k in Irvine with a pool"])
@@ -420,10 +385,6 @@ class HealthResponse(BaseModel):
     modules_loaded: dict
     cache_backend: str
 
-
-# ===========================================================================
-# Endpoints
-# ===========================================================================
 
 @app.get("/", tags=["meta"])
 async def root():
@@ -584,16 +545,8 @@ async def search_listings(request: SearchRequest):
     return SearchResponse(**result, cached=was_cached)
 
 
-# ===========================================================================
-# Tests
-# ===========================================================================
-
 def _make_client():
     from fastapi.testclient import TestClient
-    # Reset rate limiter state between tests -- TestClient reuses the same
-    # fake client host ("testclient") for every call in-process, so without
-    # this, an earlier test's requests would count against a later test's
-    # rate limit budget.
     rate_limiter.requests.clear()
     return TestClient(app)
 
@@ -736,15 +689,14 @@ def test_missing_module_returns_503_not_crash():
 def test_request_validation_rejects_empty_text():
     client = _make_client()
     resp = client.post("/check-compliance", json={"text": ""})
-    assert resp.status_code == 422  # Pydantic validation error, not a 500
+    assert resp.status_code == 422
 
 
 def test_rate_limiting_blocks_excess_requests():
     client = _make_client()
-    # burst well past the 10/sec limit from a single client
     statuses = [client.get("/health").status_code for _ in range(25)]
     assert 429 in statuses, "expected at least one 429 once the rate limit is exceeded"
-    assert statuses.count(200) <= RATE_LIMIT_PER_SECOND + 2  # small buffer for timing jitter
+    assert statuses.count(200) <= RATE_LIMIT_PER_SECOND + 2
 
 
 def test_cache_stats_endpoint():
