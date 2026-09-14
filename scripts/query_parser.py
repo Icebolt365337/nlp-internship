@@ -194,7 +194,7 @@ class QueryParser:
 
 class SchemaValidator:
 
-    def __init__(self, schema_path='schema.json'):
+    def __init__(self, schema_path='scripts/data/schema.json'):
         resolved_path = self._resolve_path(schema_path)
         with open(resolved_path) as f:
             self.schema = json.load(f)

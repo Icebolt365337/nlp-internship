@@ -1,0 +1,31 @@
+# render.yaml -- deploy both services to Render's free tier in one shot.
+# In the Render dashboard: New -> Blueprint -> point at this repo.
+#
+# After both are deployed, open the Streamlit service's URL, and in its
+# sidebar set "API base URL" to the deployed API service's URL (Render
+# gives each service its own https://<name>.onrender.com address).
+#
+# Free tier note: Render's free web services spin down after ~15 minutes
+# of inactivity and take ~30-60s to wake back up on the next request --
+# expect that cold-start delay on the first demo query after idling.
+
+services:
+  - type: web
+    name: real-estate-nlp-api
+    env: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.0
+
+  - type: web
+    name: real-estate-nlp-ui
+    env: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: streamlit run app.py --server.port $PORT --server.address 0.0.0.0 --server.headless true
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.0
