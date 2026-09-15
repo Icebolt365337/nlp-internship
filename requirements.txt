@@ -3,6 +3,13 @@ fastapi
 uvicorn[standard]
 pydantic
 
+# Demo UI
+streamlit
+requests
+
+# NLP modules used by the API (query_parser, entity_extractor,
+# signal_extractor, listing_summarizer, compliance_checker have no
+# extra deps beyond the standard library + these)
 scikit-learn
 nltk
 rouge_score
@@ -10,9 +17,18 @@ rank_bm25
 faiss-cpu
 pandas
 
+# Optional: real semantic embeddings (falls back to HashingEmbedder in
+# semantic_search.py if unavailable/unreachable at runtime).
+# NOTE: torch is installed separately as a CPU-only wheel in the
+# Dockerfile BEFORE this file is installed -- see Dockerfile comments.
+# Do not add a plain `torch` line here; it'll pull the ~2GB CUDA build
+# on top of (or instead of) the CPU-only one.
 sentence-transformers
 
+# Optional: Redis-backed caching (falls back to in-memory cache in
+# main.py if REDIS_URL isn't set or Redis is unreachable)
 redis
 
+# Testing
 pytest
 httpx
