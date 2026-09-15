@@ -168,9 +168,16 @@ def main():
                 st.caption(f"Detected intent: **{intent['intent']}** (confidence {intent['confidence']:.0%})")
 
             # Step 3: semantic search
-            search_result, search_latency, search_err = call_api(
-                api_url, "/search", {"query": query, "top_k": 10}
-            )
+            # Longer timeout than other endpoints: the FIRST /search call
+            # after a deploy/restart lazily loads the SentenceTransformer
+            # model and builds the FAISS index, which can take well over
+            # 15s on a free-tier CPU. Every call after that is fast, since
+            # the model stays loaded in memory.
+            with st.spinner("Searching... (first search after a restart can take up to a minute "
+                             "while the model loads)"):
+                search_result, search_latency, search_err = call_api(
+                    api_url, "/search", {"query": query, "top_k": 10}, timeout=90
+                )
 
             total_latency = (time.perf_counter() - total_start) * 1000
             record_query(total_latency)
@@ -229,9 +236,10 @@ def main():
 
             with col_nlp:
                 st.subheader("🧠 NLP search")
-                nlp_result, nlp_latency, nlp_err = call_api(
-                    api_url, "/search", {"query": compare_query, "top_k": 10}
-                )
+                with st.spinner("Searching..."):
+                    nlp_result, nlp_latency, nlp_err = call_api(
+                        api_url, "/search", {"query": compare_query, "top_k": 10}, timeout=90
+                    )
                 if nlp_err:
                     st.error(nlp_err)
                 else:
