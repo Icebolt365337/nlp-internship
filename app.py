@@ -16,11 +16,13 @@ Also includes:
   search, since real user satisfaction isn't measurable in a demo.
 
 Run:  streamlit run app.py
-Then point it at a running `main.py` API (default http://localhost:8000).
+Points at the API set via the API_URL environment variable, or
+http://localhost:8000 if unset (overridable in the sidebar either way).
 
 Run tests:  pytest -v app.py   (uses streamlit.testing.v1.AppTest)
 """
 
+import os
 import time
 
 import requests
@@ -30,7 +32,11 @@ import streamlit as st
 # Config
 # ===========================================================================
 
-DEFAULT_API_URL = "http://localhost:8000"
+# Reads from the API_URL environment variable if set (e.g. configure this
+# in your deployed Streamlit service's Render settings to point at your
+# deployed API service's URL), otherwise falls back to localhost for
+# local development. Can still be overridden per-session in the sidebar.
+DEFAULT_API_URL = os.environ.get("API_URL", "http://localhost:8000").rstrip("/")
 
 # Mirrors main.py's DEMO_LISTINGS so the "keyword-only" comparison has
 # something to search against without needing its own API endpoint.
