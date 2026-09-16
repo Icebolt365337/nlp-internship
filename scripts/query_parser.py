@@ -182,11 +182,14 @@ class QueryParser:
             params.append(filters['city'])
 
         for amenity in filters.get('amenities', []):
-            conditions.append('L_Remarks LIKE %s')
-            params.append(f'%{amenity}%')
+            # Using CONCAT prevents positional parameter evaluation leaks
+            conditions.append("LOWER(L_Remarks) LIKE CONCAT('%', LOWER(%s), '%')")
+            params.append(amenity)
+            
         for amenity in filters.get('exclude_amenities', []):
-            conditions.append('L_Remarks NOT LIKE %s')
-            params.append(f'%{amenity}%')
+            # Enforcing a clear NOT NULL block keeps data sanitization explicit
+            conditions.append("(L_Remarks IS NOT NULL AND LOWER(L_Remarks) NOT LIKE CONCAT('%', LOWER(%s), '%'))")
+            params.append(amenity)
 
         where_clause = ' AND '.join(conditions) if conditions else '1=1'
         return f"SELECT * FROM rets_property WHERE {where_clause}", params
