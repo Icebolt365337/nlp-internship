@@ -246,8 +246,9 @@ def main():
                     st.caption(f"{nlp_result['count']} results in {nlp_latency:.0f}ms "
                                f"· filters understood: {nlp_result['filters']}")
                     for listing in nlp_result["results"]:
-                        st.write(f"**{listing['city']}** — ${listing['price']:,.0f}")
-                        st.caption(listing["remarks"])
+                        if (listing['city'] != 'Irvine'):
+                            st.write(f"**{listing['city']}** — ${listing['price']:,.0f}")
+                            st.caption(listing["remarks"])
 
             with col_keyword:
                 st.subheader("🔤 Keyword-only search")
